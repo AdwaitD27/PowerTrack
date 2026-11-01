@@ -88,7 +88,7 @@ mvn -version
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/AdwaitDendge/PowerTrack.git
+   git clone https://github.com/AdwaitD27/PowerTrack.git
    cd PowerTrack
    ```
 
