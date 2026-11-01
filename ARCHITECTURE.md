@@ -1,19 +1,51 @@
-# Architecture Overview
+# High-Level Architecture
 
-PowerTrack follows a modular architecture separating concerns between data acquisition, logic, persistence, and presentation.
+This document gives a quick, broad overview of how PowerTrack is structured and how data flows through the application.
 
-## Classes & Responsibilities
+---
 
-- **Launcher.java / Main.java**: `Launcher` provides a non-JavaFX entry point for the Fat JAR. `Main` initializes JavaFX, sets up the SQLite database, wires dependencies, starts the background monitoring thread, and launches the UI.
-- **PowerMonitor (com.powertrack.monitor)**: Uses JNA (`GetSystemPowerStatus`) to query Windows for the current AC connection state and battery percentage. On startup, it spawns `powercfg /batteryreport /xml` via standard `ProcessBuilder` and parses the XML to extract the exact `FullChargeCapacity` (mWh) of the battery.
-- **SessionManager (com.powertrack.session)**: Listens for AC power state changes. When AC is connected, it begins a session; when disconnected, it ends the session, calculates duration, utilizes `PowerEstimator` to get the estimated energy, and saves the session using `DatabaseManager`.
-- **PowerEstimator (com.powertrack.estimation)**: Contains the logic to estimate battery charging power in Watts based on actual battery capacity and real-time percentage changes (`delta Wh / delta time`). If capacity is unavailable or battery is at 100%, it returns -1 to indicate telemetry is unavailable.
-- **DatabaseManager (com.powertrack.database)**: Handles JDBC SQLite interactions. It initializes tables (`power_sessions`, `settings`), and performs inserts and aggregations (e.g., getting the current month's energy and cost totals).
-- **SettingsManager (com.powertrack.settings)**: Manages application configuration (primarily the electricity rate in ₹/kWh) with persistence to the `settings` table.
-- **Dashboard (com.powertrack.ui)**: A minimalist JavaFX interface that displays the real-time AC state, battery percentage, real-time current session battery charging power estimations, and this month's aggregated energy and cost. Uses a JavaFX `Timeline` to poll monitoring securely on the UI thread without blocking. Shows "N/A" for unavailable telemetry.
+## The 4 Main Components
 
-## Data Flow
-1. **Startup**: `Main` triggers database initialization. `SettingsManager` loads rates. `PowerMonitor` checks initial capacity via `powercfg`.
-2. **Monitoring**: A JavaFX `Timeline` polls `PowerMonitor` periodically (e.g., every 10 seconds) safely updating telemetry in `PowerEstimator`.
-3. **Session Cycle**: If AC connects, `SessionManager` starts tracking. While tracking, `Dashboard` updates live estimated battery charging Watts. When AC disconnects, a session record is finalized and inserted into SQLite.
-4. **UI Updates**: `Dashboard` updates periodically via `Platform.runLater()` reflecting current states and pulling updated monthly totals from `DatabaseManager` when a session concludes.
+The app is divided into four simple, clear layers:
+
+```
+[ Windows System ] 
+        │ (reads battery & plug state)
+        ▼
+ 1. Power Monitor (JNA)
+        │
+        ▼
+ 2. Session & Estimation
+        │
+        ├───► 3. Local Database (SQLite)
+        │
+        ▼
+ 4. UI Dashboard (JavaFX)
+```
+
+1. **Monitor Layer (`com.powertrack.monitor`)**
+   - Communicates with Windows using JNA (Java Native Access) to call `GetSystemPowerStatus`.
+   - Checks two basic things: Is the laptop plugged into the wall? And what is the battery percentage right now?
+   - On startup, it reads the battery's full charge capacity using the Windows `powercfg` tool.
+
+2. **Session & Estimation Layer (`com.powertrack.session` & `com.powertrack.estimation`)**
+   - **Session Manager:** Tracks the active charging session. When the laptop is plugged in, it starts a timer; when unplugged, it wraps up the session.
+   - **Power Estimator:** Performs the basic math. It compares battery percentage changes over time to estimate the charging wattage (Watts) and accumulated energy (Watt-hours).
+
+3. **Database Layer (`com.powertrack.database` & `com.powertrack.settings`)**
+   - Connects to a local SQLite file (`powertrack.db`).
+   - Saves completed sessions (start time, end time, duration, energy used, and calculated cost).
+   - Also stores user settings like the electricity rate (₹/kWh) so it persists between app restarts.
+
+4. **UI Layer (`com.powertrack.ui`)**
+   - A single JavaFX dashboard window.
+   - A light timer checks for updates every 10 seconds and refreshes the numbers on screen (live power, session duration, and this month's totals).
+
+---
+
+## How It Works in 4 Steps (The Data Flow)
+
+1. **App Opens:** The app loads your saved electricity rate from SQLite and detects your battery's full capacity.
+2. **Charger Connected:** The monitor detects AC power is active. A new charging session begins.
+3. **While Charging:** Every 10 seconds, the app checks if battery percentage increased and estimates the current charging wattage on the dashboard.
+4. **Charger Disconnected:** The session ends. The total time, energy (kWh), and cost are calculated and saved to the SQLite database. The monthly total updates immediately on screen.

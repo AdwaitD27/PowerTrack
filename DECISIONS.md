@@ -1,10 +1,18 @@
-# Important Decisions & Tradeoffs
+# Design Choices & Tradeoffs
 
-- **Java 22**: Chosen for modern features and as the primary implementation language as per spec.
-- **SQLite via JDBC**: Ideal for local, single-user desktop apps. No complex client-server database (e.g., MySQL) was used.
-- **Pure Java over Python**: System data is gathered via JNA (Java Native Access) mapping to Windows APIs and standard Java `ProcessBuilder` (for querying WMI if needed), avoiding adding Python as an external dependency.
-- **No Tariff Slabs**: A flat electricity rate is used for simplicity, strictly adhering to the requirements.
-- **Estimated Battery Charging Power vs Wall Power**: Exact total system wattage (wall power) isn't provided via standard WMI without driver-specific hacks. PowerTrack strictly estimates the *Battery Charging Power* by monitoring `BatteryLifePercent` changes from `GetSystemPowerStatus` and multiplying by `FullChargeCapacity` (obtained by generating and parsing a Windows `powercfg /batteryreport /xml` on startup) over elapsed time. If at 100% capacity (where charging stops) or if capacity is unavailable, the telemetry is explicitly marked as unavailable (-1/N/A) rather than outputting false precision (like 0W or a 50Wh fallback) for total system consumption.
-- **Minimal Monitoring**: A background polling thread runs every 10 seconds. This is low-frequency enough to not drain CPU while keeping tracking reasonably accurate.
-- **No Notifications**: Windows Toast notifications were explicitly excluded from the design to maintain minimal intrusion.
-- **Aggregation**: Monthly totals are calculated dynamically via SQL `SUM` aggregations over session timestamps rather than maintaining separate monthly tracking tables, keeping the schema simple and ensuring past data remains intact.
+These are the key design choices made while building PowerTrack and the reasoning behind them:
+
+### 1. Using SQLite Instead of a Big Database Server
+Since PowerTrack is a personal desktop utility running on a single laptop, there is no need for a complex database server like MySQL or PostgreSQL. SQLite stores all data in a single local file (`powertrack.db`), requires zero configuration, and works offline out of the box.
+
+### 2. Using JNA for Native Windows Calls
+Instead of relying on external scripts (like Python or PowerShell wrappers) that might fail if dependencies are missing, the app uses JNA (Java Native Access). This lets Java call the Windows `Kernel32` system power API directly in memory, making it fast and self-contained.
+
+### 3. Estimating Battery Charging vs Wall Socket Power
+Standard laptops do not have built-in hardware sensors to measure wall-plug electricity draw. They only have sensors that report battery charge level and capacity. Rather than inventing fake numbers for total wall draw, PowerTrack explicitly measures and displays **estimated battery charging power**. When the battery reaches 100%, charging stops, so the app shows "N/A" instead of guessing.
+
+### 4. 10-Second Polling Frequency
+Checking system power status every 10 seconds is frequent enough to keep session tracking accurate, while using virtually 0% CPU.
+
+### 5. Flat Electricity Rate
+Different regions have complex slab systems for electricity billing. To keep the app simple and easy to understand, PowerTrack uses a single flat rate per unit (e.g. ₹/kWh) that the user can change anytime from the UI.
