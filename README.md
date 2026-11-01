@@ -43,11 +43,11 @@ The logic behind the app is straightforward:
 
 ## Tech Stack
 
-- **Java 22** – Core programming language
-- **JavaFX** – Desktop user interface
-- **SQLite (JDBC)** – Lightweight local database
-- **JNA (Java Native Access)** – Calls Windows power APIs directly from Java
-- **Maven** – Build and dependency management
+- **Java 22**: Core programming language
+- **JavaFX**:  Desktop user interface
+- **SQLite (JDBC)**: Lightweight local database
+- **JNA (Java Native Access)**: Calls Windows power APIs directly from Java
+- **Maven**: Build and dependency management
 
 ---
 
