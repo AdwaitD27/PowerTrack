@@ -1,0 +1,28 @@
+# Build & Package directories
+target/
+*.class
+
+# Maven Shade Plugin artifact
+dependency-reduced-pom.xml
+
+# Local Runtime Data & Databases
+powertrack.db
+*.db
+*.db-journal
+battery-report.xml
+
+# Logs
+*.log
+
+# IDE & Editor Configurations
+.idea/
+*.iml
+.vscode/
+.project
+.classpath
+.settings/
+
+# Operating System Files
+Thumbs.db
+[Dd]esktop.ini
+.DS_Store
